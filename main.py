@@ -7,7 +7,6 @@ from fastapi.responses import JSONResponse
 from fastapi_jwt_auth import AuthJWT
 from fastapi_jwt_auth.exceptions import AuthJWTException
 from pydantic import BaseModel, Field, EmailStr
-from typing import List
 
 
 # Settings --------------------------------------
@@ -125,22 +124,24 @@ async def login(login: LoginData, Authorize: AuthJWT = Depends()):
 # Read ------------------------------
 @app.get("/accounts")
 async def read():
+    """ Returns a list of accounts.
+    """
     accounts = await db['accounts'].find().to_list(100)
     return JSONResponse(status_code=status.HTTP_200_OK, content=accounts)
 
 
 @app.get("/accounts/me")
 async def read(Authorize: AuthJWT = Depends()):
+    """ Returns the logged in account + data gathered from its fb profile
+    """
     Authorize.jwt_required()
     email = Authorize.get_jwt_subject()
 
     account = await db["accounts"].find_one({"email": email})
-
     if account is None:
         raise HTTPException(status_code=404, detail="User not found")
 
     profile = get_fb_profile(account["fb_access_token"])
-
     return JSONResponse(status_code=status.HTTP_200_OK,
                         content={"account": account,
                                  "fb_public_profile": profile})
@@ -149,6 +150,8 @@ async def read(Authorize: AuthJWT = Depends()):
 # Update ------------------------------
 @app.put("/accounts/me")
 async def update(account: UpdateAccountModel = Body(...), Authorize: AuthJWT = Depends()):
+    """ Updates the logged in account with given fields
+    """
     Authorize.jwt_required()
     email = Authorize.get_jwt_subject()
     account = {k:v for k, v in account.dict().items() if v is not None}
@@ -173,6 +176,8 @@ async def update(account: UpdateAccountModel = Body(...), Authorize: AuthJWT = D
 # Delete ----------------------------
 @app.delete("/accounts/me")
 async def delete(Authorize: AuthJWT = Depends()):
+    """ Deletes the logged in account
+    """
     Authorize.jwt_required()
     email = Authorize.get_jwt_subject()
     transaction = await db["accounts"].delete_one({"email": email})
@@ -180,4 +185,4 @@ async def delete(Authorize: AuthJWT = Depends()):
     if transaction.deleted_count == 1:
         return JSONResponse(status_code=status.HTTP_204_NO_CONTENT)
 
-    raise HTTPException(status_code=404, detail="User not found")
+    raise HTTPException(status_code=404, detail="Account not found")
